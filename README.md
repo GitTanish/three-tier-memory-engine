@@ -24,6 +24,14 @@ Consolidation, the shift from episodic record to semantic knowledge, begins as a
 
 Updates, conflicts, provenance, and expiration belong in the model from the start. Context is assembled under a token budget.
 
+## What would make this useful
+
+I want an agent's tenth session on a project to go better because of the first nine. It should need fewer corrections and spend less time rediscovering things we already worked out. That's what I want to measure, not how much it can store.
+
+The risk is that it gets better at repeating its mistakes. An incorrect assumption saved in one session can become the starting point for the next five. If another agent copies it, it can start to look independently confirmed.
+
+So I want to test corrections across sessions, too. Tell the agent it was wrong, start a new session, and see whether it still makes the same mistake.
+
 ## Shape
 
 Agents use a common interface to store, retrieve, update, delete, share, and consolidate memories. A central manager coordinates storage, retrieval, access control, and lifecycle behind that interface.
