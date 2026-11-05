@@ -83,15 +83,40 @@ Per-memory ACLs are deferred. The service enforces authorization, but a local ag
 7. Agent C, with no access, receives nothing.
 8. If B had stored a derived copy of PostgreSQL, that copy is marked stale.
 
-## Open questions
+## 10 Essential Questions
 
-1. **Consolidation processing:** does the engine call an LLM to extract facts from episodic records, or does the application supply structured facts and the engine handle deduplication, provenance, versioning, and conflict flags?
-2. **Correction propagation:** should downstream derived memories be marked stale automatically, or should the correction only affect the direct memory until an agent rechecks?
-3. **Access-control boundary:** is cooperative isolation sufficient, or must the service protect memory from other local processes?
-4. **Session end:** should working memory simply expire, or be promoted into episodic memory before the session closes?
-5. **Transport and integration:** local HTTP is the default; an MCP adapter may be added later for coding agents.
-6. **Embeddings:** local model, remote provider, or client-supplied vectors?
+These are the decisions that still shape the architecture. Each has a recommended default; we proceed with the recommendation unless it is changed.
+
+1. **Consolidation processing:** does the engine call an LLM to extract facts from episodic records, or does the application supply structured facts and the engine handle deduplication, provenance, versioning, and conflict flags?  
+   **Recommendation:** define a `Consolidator` interface. Ship a deterministic, structured implementation first; add an LLM-backed implementation behind the same interface later.
+
+2. **Correction propagation:** should downstream derived memories be marked stale automatically, or should a correction only affect the direct memory until an agent rechecks?  
+   **Recommendation:** track `derived_from` links and automatically mark downstream memories `stale`. Do not silently rewrite their content.
+
+3. **Access-control boundary:** is cooperative isolation sufficient, or must the service protect memory from other local processes?  
+   **Recommendation:** treat V1 as cooperative isolation. Document that a local process with filesystem access can bypass the API.
+
+4. **Session end:** should working memory simply expire, or be promoted into episodic memory before the session closes?  
+   **Recommendation:** expire working memory automatically. The application may promote or consolidate it before closing the session.
+
+5. **Transport and integration:** local HTTP, stdio/JSON-RPC, or MCP?  
+   **Recommendation:** local HTTP with a thin Python client. Add an MCP adapter later for coding agents.
+
+6. **Embeddings:** local model, remote provider, or client-supplied vectors?  
+   **Recommendation:** keep embeddings pluggable. Use a deterministic embedder for tests and a local CPU model for real use; avoid a remote dependency in V1.
+
+7. **Agent identity and bootstrap:** how do agents receive identities and credentials?  
+   **Recommendation:** an admin CLI registers agents and issues local API tokens. The service stores token hashes, not plaintext.
+
+8. **History visibility:** who can see superseded versions and provenance?  
+   **Recommendation:** history uses the same access rules as the memory itself. It is opt-in on retrieval, and admins can see everything.
+
+9. **Deletion and retention:** hard delete, soft delete, or tombstone? What expires?  
+   **Recommendation:** working memory hard-expires; episodic and semantic memories are tombstoned. A separate admin purge operation can remove data permanently.
+
+10. **Evaluation:** real LLM in the loop, or scripted agent? What is measured?  
+    **Recommendation:** a deterministic scripted harness in CI plus a small real-agent run. Measure correction recurrence, rediscovery, retrieved tokens, and retrieval precision/recall.
 
 ## Next step
 
-Define the data model and API contract from this scope.
+The core domain models are implemented. Storage schema and the API contract follow.
