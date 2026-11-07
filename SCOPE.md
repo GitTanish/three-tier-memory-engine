@@ -119,4 +119,4 @@ These are the decisions that still shape the architecture. Each has a recommende
 
 ## Next step
 
-The core domain models and SQLite storage are implemented. The API contract and local service follow.
+The core domain models, SQLite storage, and `MemoryEngine` facade are implemented. The API contract and local service follow.

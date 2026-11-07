@@ -30,6 +30,13 @@ class MemoryStatus(StrEnum):
     DELETED = "deleted"
 
 
+class CorrectionKind(StrEnum):
+    """Why an existing memory is being replaced."""
+
+    SUPERSEDED = "superseded"
+    RETRACTED = "retracted"
+
+
 class MemoryRecord(BaseModel):
     """A versioned unit of memory.
 
