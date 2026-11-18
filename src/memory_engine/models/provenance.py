@@ -16,6 +16,7 @@ class ProvenanceRelation(StrEnum):
     DERIVED_FROM = "derived_from"
     CORRECTED_BY = "corrected_by"
     COPIED_FROM = "copied_from"
+    COMPRESSED_FROM = "compressed_from"
     CONSOLIDATED_FROM = "consolidated_from"
 
 

@@ -61,8 +61,9 @@ class MemoryStore(Protocol):
         *,
         agent_id: UUID,
         project_id: UUID | None = None,
+        session_id: UUID | None = None,
         tiers: Iterable[MemoryTier] | None = None,
-        limit: int = 50,
+        limit: int | None = 50,
         at: datetime | None = None,
     ) -> list[MemoryRecord]: ...
 

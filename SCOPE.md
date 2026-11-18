@@ -130,4 +130,4 @@ Build the memory lifecycle one component at a time:
 
 ## Next step
 
-The working scratchpad is implemented. Episodic compression is next.
+The working scratchpad and episodic compression are implemented. Semantic recall is next.

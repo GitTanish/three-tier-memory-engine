@@ -262,11 +262,12 @@ class SqliteMemoryStore:
         *,
         agent_id: UUID,
         project_id: UUID | None = None,
+        session_id: UUID | None = None,
         tiers: Iterable[MemoryTier] | None = None,
-        limit: int = 50,
+        limit: int | None = 50,
         at: datetime | None = None,
     ) -> list[MemoryRecord]:
-        if limit < 1:
+        if limit is not None and limit < 1:
             raise ValueError("limit must be at least 1")
 
         tier_values = [tier.value for tier in tiers] if tiers is not None else []
@@ -300,12 +301,17 @@ class SqliteMemoryStore:
             conditions.append("m.project_id = ?")
             params.append(str(project_id))
 
+        if session_id is not None:
+            conditions.append("m.session_id = ?")
+            params.append(str(session_id))
+
         if tier_values:
             placeholders = ", ".join("?" for _ in tier_values)
             conditions.append(f"m.tier IN ({placeholders})")
             params.extend(tier_values)
 
-        params.append(limit)
+        # SQLite treats a negative limit as "no limit".
+        params.append(limit if limit is not None else -1)
         rows = self._connection.execute(
             f"""
             SELECT m.* FROM memories m

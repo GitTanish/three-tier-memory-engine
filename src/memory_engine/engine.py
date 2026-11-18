@@ -7,6 +7,7 @@ behind one interface. Transport and retrieval ranking are added separately.
 from collections.abc import Iterable
 from uuid import UUID
 
+from memory_engine.compression import build_session_episode
 from memory_engine.errors import AccessDeniedError, InvalidStateError, NotFoundError
 from memory_engine.models import (
     AccessScope,
@@ -101,13 +102,15 @@ class MemoryEngine:
         *,
         agent_id: UUID,
         project_id: UUID | None = None,
+        session_id: UUID | None = None,
         tiers: Iterable[MemoryTier] | None = None,
-        limit: int = 50,
+        limit: int | None = 50,
     ) -> list[MemoryRecord]:
         self._require_agent(agent_id)
         return self._store.list_visible_memories(
             agent_id=agent_id,
             project_id=project_id,
+            session_id=session_id,
             tiers=tiers,
             limit=limit,
         )
@@ -194,6 +197,69 @@ class MemoryEngine:
             )
         )
         return new
+
+    def compress_session(
+        self,
+        *,
+        agent_id: UUID,
+        session_id: UUID,
+        importance: float | None = None,
+    ) -> MemoryRecord:
+        """Compress one session into a deterministic episodic memory.
+
+        The application decides when a session is ready. Calling this again
+        returns the existing episode. Working entries and source memories are
+        left in place so the caller can clear or expire them separately.
+
+        The episode is project-scoped, so compression shares the session
+        summary with project members.
+        """
+        agent = self._require_agent(agent_id)
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError(f"session {session_id} not found")
+        if session.agent_id != agent_id:
+            raise AccessDeniedError("agent cannot compress this session")
+
+        project = self._store.get_project(session.project_id)
+        if project is None:
+            raise NotFoundError(f"project {session.project_id} not found")
+
+        episodic_memories = self._store.list_visible_memories(
+            agent_id=agent_id,
+            project_id=project.id,
+            session_id=session.id,
+            tiers=[MemoryTier.EPISODIC],
+            limit=None,
+        )
+        existing = max(
+            (
+                memory
+                for memory in episodic_memories
+                if memory.metadata.get("kind") == "session_episode"
+            ),
+            key=lambda memory: memory.created_at,
+            default=None,
+        )
+        if existing is not None:
+            return existing
+
+        working_entries = self._store.list_working_entries(session.id)
+        if not working_entries and not episodic_memories:
+            raise InvalidStateError("session has nothing to compress")
+
+        episode, provenance = build_session_episode(
+            session=session,
+            agent=agent,
+            project=project,
+            working_entries=working_entries,
+            episodic_memories=episodic_memories,
+            importance=importance,
+        )
+        stored = self.store_memory(episode)
+        for edge in provenance:
+            self._store.add_provenance(edge)
+        return stored
 
     def can_read(self, agent_id: UUID, memory: MemoryRecord) -> bool:
         if memory.owner_agent_id == agent_id:
