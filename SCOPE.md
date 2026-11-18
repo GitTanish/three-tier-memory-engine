@@ -117,6 +117,17 @@ These are the decisions that still shape the architecture. Each has a recommende
 10. **Evaluation:** real LLM in the loop, or scripted agent? What is measured?  
     **Recommendation:** a deterministic scripted harness in CI plus a small real-agent run. Measure correction recurrence, rediscovery, retrieved tokens, and retrieval precision/recall.
 
+## Component plan
+
+Build the memory lifecycle one component at a time:
+
+1. **Working scratchpad** — session-scoped state, TTL, persistence.
+2. **Episodic compression** — turn session history into a compact episode.
+3. **Semantic recall** — durable facts and hybrid retrieval.
+4. **Importance scoring** — rank what deserves context.
+5. **TTL eviction** — lifecycle cleanup across tiers.
+6. **Cross-session persistence** — carry the right knowledge forward.
+
 ## Next step
 
-The core domain models, SQLite storage, and `MemoryEngine` facade are implemented. The API contract and local service follow.
+The working scratchpad is implemented. Episodic compression is next.

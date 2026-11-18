@@ -27,3 +27,6 @@ htmlcov/
 *.sqlite3
 data/
 .memory/
+
+# Private working notes
+notes/

@@ -18,6 +18,7 @@ from memory_engine.models import (
     ProjectMembership,
     Provenance,
     Session,
+    WorkingEntry,
 )
 
 
@@ -70,5 +71,28 @@ class MemoryStore(Protocol):
     def add_provenance(self, provenance: Provenance) -> Provenance: ...
 
     def list_provenance(self, memory_id: UUID) -> list[Provenance]: ...
+
+    def upsert_working_entry(self, entry: WorkingEntry) -> WorkingEntry: ...
+
+    def get_working_entry(
+        self,
+        session_id: UUID,
+        key: str,
+        *,
+        at: datetime | None = None,
+    ) -> WorkingEntry | None: ...
+
+    def list_working_entries(
+        self,
+        session_id: UUID,
+        *,
+        at: datetime | None = None,
+    ) -> list[WorkingEntry]: ...
+
+    def delete_working_entry(self, session_id: UUID, key: str) -> bool: ...
+
+    def clear_working_entries(self, session_id: UUID) -> int: ...
+
+    def evict_expired_working_entries(self, *, at: datetime | None = None) -> int: ...
 
     def close(self) -> None: ...

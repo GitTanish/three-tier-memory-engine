@@ -30,6 +30,20 @@ CREATE TABLE IF NOT EXISTS project_memberships (
     PRIMARY KEY (project_id, agent_id)
 );
 
+CREATE TABLE IF NOT EXISTS working_entries (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    entry_key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    importance REAL NOT NULL DEFAULT 0.5,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, entry_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_working_entries_expires
+    ON working_entries(expires_at);
+
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     tier TEXT NOT NULL,

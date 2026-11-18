@@ -20,9 +20,11 @@ from memory_engine.models import (
     ProjectRole,
     Provenance,
     ProvenanceRelation,
+    Session,
 )
 from memory_engine.models.base import utc_now
 from memory_engine.storage.base import MemoryStore
+from memory_engine.working import WorkingScratchpad
 
 
 class MemoryEngine:
@@ -30,6 +32,7 @@ class MemoryEngine:
 
     def __init__(self, store: MemoryStore) -> None:
         self._store = store
+        self.working = WorkingScratchpad(store)
 
     def register_agent(self, name: str) -> Agent:
         return self._store.add_agent(Agent(name=name))
@@ -50,6 +53,22 @@ class MemoryEngine:
             raise InvalidStateError("agent is already a project member")
         return self._store.add_membership(
             ProjectMembership(project_id=project_id, agent_id=agent_id, role=role)
+        )
+
+    def start_session(
+        self,
+        *,
+        agent_id: UUID,
+        project_id: UUID,
+        task_id: str | None = None,
+    ) -> Session:
+        self._require_agent(agent_id)
+        if self._store.get_project(project_id) is None:
+            raise NotFoundError(f"project {project_id} not found")
+        if self._store.get_membership(project_id, agent_id) is None:
+            raise AccessDeniedError("agent is not a project member")
+        return self._store.add_session(
+            Session(agent_id=agent_id, project_id=project_id, task_id=task_id)
         )
 
     def store_memory(self, memory: MemoryRecord) -> MemoryRecord:

@@ -22,6 +22,7 @@ from memory_engine.models import (
     Provenance,
     ProvenanceRelation,
     Session,
+    WorkingEntry,
 )
 from memory_engine.models.base import utc_now
 
@@ -391,6 +392,103 @@ class SqliteMemoryStore:
             )
             for row in rows
         ]
+
+    def upsert_working_entry(self, entry: WorkingEntry) -> WorkingEntry:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO working_entries (
+                    session_id, entry_key, value_json, importance,
+                    created_at, updated_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id, entry_key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    importance = excluded.importance,
+                    updated_at = excluded.updated_at,
+                    expires_at = excluded.expires_at
+                """,
+                (
+                    str(entry.session_id),
+                    entry.key,
+                    json.dumps(entry.value),
+                    entry.importance,
+                    _dt_to_text(entry.created_at),
+                    _dt_to_text(entry.updated_at),
+                    _dt_to_text(entry.expires_at),
+                ),
+            )
+        return entry
+
+    def get_working_entry(
+        self,
+        session_id: UUID,
+        key: str,
+        *,
+        at: datetime | None = None,
+    ) -> WorkingEntry | None:
+        row = self._connection.execute(
+            """
+            SELECT * FROM working_entries
+            WHERE session_id = ? AND entry_key = ? AND expires_at > ?
+            """,
+            (str(session_id), key, _dt_to_text(at or utc_now())),
+        ).fetchone()
+        return self._row_to_working_entry(row) if row is not None else None
+
+    def list_working_entries(
+        self,
+        session_id: UUID,
+        *,
+        at: datetime | None = None,
+    ) -> list[WorkingEntry]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM working_entries
+            WHERE session_id = ? AND expires_at > ?
+            ORDER BY updated_at DESC
+            """,
+            (str(session_id), _dt_to_text(at or utc_now())),
+        ).fetchall()
+        return [self._row_to_working_entry(row) for row in rows]
+
+    def delete_working_entry(self, session_id: UUID, key: str) -> bool:
+        with self._connection:
+            cursor = self._connection.execute(
+                """
+                DELETE FROM working_entries
+                WHERE session_id = ? AND entry_key = ?
+                """,
+                (str(session_id), key),
+            )
+        return cursor.rowcount > 0
+
+    def clear_working_entries(self, session_id: UUID) -> int:
+        with self._connection:
+            cursor = self._connection.execute(
+                "DELETE FROM working_entries WHERE session_id = ?",
+                (str(session_id),),
+            )
+        return cursor.rowcount
+
+    def evict_expired_working_entries(self, *, at: datetime | None = None) -> int:
+        with self._connection:
+            cursor = self._connection.execute(
+                "DELETE FROM working_entries WHERE expires_at <= ?",
+                (_dt_to_text(at or utc_now()),),
+            )
+        return cursor.rowcount
+
+    @staticmethod
+    def _row_to_working_entry(row: sqlite3.Row) -> WorkingEntry:
+        return WorkingEntry(
+            session_id=UUID(row["session_id"]),
+            key=row["entry_key"],
+            value=json.loads(row["value_json"]),
+            importance=row["importance"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+            expires_at=datetime.fromisoformat(row["expires_at"]),
+        )
 
     @staticmethod
     def _row_to_memory(row: sqlite3.Row) -> MemoryRecord:
