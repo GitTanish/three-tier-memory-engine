@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS memories (
     updated_at TEXT NOT NULL,
     expires_at TEXT,
     last_accessed_at TEXT,
+    access_count INTEGER NOT NULL DEFAULT 0,
     tags_json TEXT NOT NULL DEFAULT '[]',
     metadata_json TEXT NOT NULL DEFAULT '{}'
 );
@@ -75,6 +76,12 @@ CREATE INDEX IF NOT EXISTS idx_memories_supersedes
 
 CREATE INDEX IF NOT EXISTS idx_memories_expires
     ON memories(expires_at);
+
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    embedder_id TEXT NOT NULL,
+    vector_json TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS provenance (
     id TEXT PRIMARY KEY,

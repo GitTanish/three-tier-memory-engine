@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from uuid import UUID
 
 from memory_engine.compression import build_session_episode
+from memory_engine.embeddings import Embedder, HashingEmbedder
 from memory_engine.errors import AccessDeniedError, InvalidStateError, NotFoundError
 from memory_engine.models import (
     AccessScope,
@@ -21,18 +22,25 @@ from memory_engine.models import (
     ProjectRole,
     Provenance,
     ProvenanceRelation,
+    RecallHit,
     Session,
 )
 from memory_engine.models.base import utc_now
+from memory_engine.retrieval import apply_token_budget, rank_memories
 from memory_engine.storage.base import MemoryStore
 from memory_engine.working import WorkingScratchpad
 
 
 class MemoryEngine:
-    """Coordinates memory storage, access checks, and corrections."""
+    """Coordinates memory storage, access checks, corrections, and recall."""
 
-    def __init__(self, store: MemoryStore) -> None:
+    def __init__(
+        self,
+        store: MemoryStore,
+        embedder: Embedder | None = None,
+    ) -> None:
         self._store = store
+        self._embedder = embedder or HashingEmbedder()
         self.working = WorkingScratchpad(store)
 
     def register_agent(self, name: str) -> Agent:
@@ -95,7 +103,9 @@ class MemoryEngine:
             if membership is None or membership.role == ProjectRole.READER:
                 raise AccessDeniedError("agent cannot write project-scoped memory")
 
-        return self._store.add_memory(memory)
+        stored = self._store.add_memory(memory)
+        self._index_memory(stored)
+        return stored
 
     def list_memories(
         self,
@@ -133,6 +143,62 @@ class MemoryEngine:
         if not visible:
             raise AccessDeniedError("agent cannot read this memory")
         return visible
+
+    def recall(
+        self,
+        *,
+        agent_id: UUID,
+        query: str,
+        project_id: UUID | None = None,
+        session_id: UUID | None = None,
+        tiers: Iterable[MemoryTier] | None = (MemoryTier.SEMANTIC,),
+        limit: int = 10,
+        max_tokens: int | None = None,
+    ) -> list[RecallHit]:
+        """Rank visible memories for a query, best first.
+
+        Access filtering happens in storage before ranking. Superseded and
+        expired memories are excluded there too. Missing embeddings are
+        rebuilt lazily, so recall stays correct after a restore. Each
+        returned hit counts as one access, which feeds importance scoring.
+        """
+        self._require_agent(agent_id)
+        if not query.strip():
+            raise ValueError("query must not be empty")
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        if max_tokens is not None and max_tokens < 1:
+            raise ValueError("max_tokens must be at least 1")
+
+        # shortcut: ranks every visible candidate; add a candidate prefilter
+        # when memory counts outgrow a local scan.
+        candidates = self._store.list_visible_memories(
+            agent_id=agent_id,
+            project_id=project_id,
+            session_id=session_id,
+            tiers=tiers,
+            limit=None,
+        )
+        stored = self._store.get_memory_embeddings(
+            memory.id for memory in candidates
+        )
+        embeddings: dict[UUID, list[float]] = {}
+        for memory in candidates:
+            entry = stored.get(memory.id)
+            if entry is None or entry[0] != self._embedder.id:
+                self._index_memory(memory)
+                entry = (self._embedder.id, self._embedder.embed(memory.content))
+            embeddings[memory.id] = entry[1]
+
+        hits = rank_memories(
+            query=query,
+            memories=candidates,
+            embeddings=embeddings,
+            embedder=self._embedder,
+        )
+        selected = apply_token_budget(hits, max_tokens)[:limit]
+        self._store.record_memory_access(hit.memory.id for hit in selected)
+        return selected
 
     def correct_memory(
         self,
@@ -175,6 +241,7 @@ class MemoryEngine:
             metadata=dict(old.metadata),
         )
         self._store.add_memory(new)
+        self._index_memory(new)
 
         old_status = (
             MemoryStatus.SUPERSEDED
@@ -278,6 +345,13 @@ class MemoryEngine:
             ProjectRole.WRITER,
             ProjectRole.ADMIN,
         }
+
+    def _index_memory(self, memory: MemoryRecord) -> None:
+        self._store.upsert_memory_embedding(
+            memory.id,
+            self._embedder.id,
+            self._embedder.embed(memory.content),
+        )
 
     def _require_agent(self, agent_id: UUID) -> Agent:
         agent = self._store.get_agent(agent_id)

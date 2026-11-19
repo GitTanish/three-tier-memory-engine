@@ -1,5 +1,6 @@
 """Integration tests for the SQLite store."""
 
+import sqlite3
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -21,6 +22,7 @@ from memory_engine.models import (
     Session,
 )
 from memory_engine.storage import SqliteMemoryStore
+from memory_engine.storage.sqlite import SCHEMA_PATH
 
 pytestmark = pytest.mark.integration
 
@@ -235,4 +237,23 @@ def test_file_backed_store_persists(tmp_path: Path) -> None:
 
     with SqliteMemoryStore(database) as store:
         assert store.get_agent(agent.id) == agent
+        assert store.get_memory(memory.id) == memory
+
+
+def test_existing_database_gains_access_count(tmp_path: Path) -> None:
+    database = tmp_path / "legacy.db"
+    legacy_sql = "\n".join(
+        line
+        for line in SCHEMA_PATH.read_text(encoding="utf-8").splitlines()
+        if "access_count" not in line
+    )
+    connection = sqlite3.connect(database)
+    connection.executescript(legacy_sql)
+    connection.close()
+
+    with SqliteMemoryStore(database) as store:
+        agent = add_agent(store, "Agent A")
+        memory = add_memory(store, agent)
+
+        assert memory.access_count == 0
         assert store.get_memory(memory.id) == memory

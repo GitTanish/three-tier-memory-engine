@@ -73,6 +73,24 @@ class MemoryStore(Protocol):
 
     def list_provenance(self, memory_id: UUID) -> list[Provenance]: ...
 
+    def record_memory_access(
+        self,
+        memory_ids: Iterable[UUID],
+        at: datetime | None = None,
+    ) -> None: ...
+
+    def upsert_memory_embedding(
+        self,
+        memory_id: UUID,
+        embedder_id: str,
+        vector: list[float],
+    ) -> None: ...
+
+    def get_memory_embeddings(
+        self,
+        memory_ids: Iterable[UUID],
+    ) -> dict[UUID, tuple[str, list[float]]]: ...
+
     def upsert_working_entry(self, entry: WorkingEntry) -> WorkingEntry: ...
 
     def get_working_entry(

@@ -39,6 +39,7 @@ def test_memory_defaults() -> None:
     assert memory.version == 1
     assert memory.importance == 0.5
     assert memory.confidence == 1.0
+    assert memory.access_count == 0
     assert memory.tags == []
     assert memory.metadata == {}
 

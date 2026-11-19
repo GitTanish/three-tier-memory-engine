@@ -63,6 +63,7 @@ class MemoryRecord(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime | None = None
     last_accessed_at: datetime | None = None
+    access_count: int = Field(default=0, ge=0)
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

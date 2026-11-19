@@ -38,7 +38,32 @@ Agents use a common interface to store, retrieve, update, delete, share, and con
 
 ## Stack
 
-Python, Pydantic, SQLite, FAISS, BM25, Reciprocal Rank Fusion, pytest. These choices are provisional.
+Python, Pydantic, SQLite, BM25, Reciprocal Rank Fusion, pytest. These choices are provisional.
+
+## Try it
+
+There is no server or CLI yet. The engine is a Python library.
+
+```python
+from memory_engine import MemoryEngine
+from memory_engine.models import MemoryRecord, MemoryTier
+from memory_engine.storage import SqliteMemoryStore
+
+store = SqliteMemoryStore("memory.db")
+engine = MemoryEngine(store)
+
+agent = engine.register_agent("planner")
+engine.store_memory(
+    MemoryRecord(
+        tier=MemoryTier.SEMANTIC,
+        content="The project uses SQLite for storage.",
+        owner_agent_id=agent.id,
+    )
+)
+
+hits = engine.recall(agent_id=agent.id, query="which database?")
+print(hits[0].memory.content)
+```
 
 ## Questions
 
@@ -46,4 +71,4 @@ What should be remembered, how it should be represented, how agents share it saf
 
 ## Status
 
-Work in progress. The memory model, storage contracts, and lifecycle semantics come first; retrieval and multi-agent integration follow.
+Work in progress. Working memory, episodic compression, semantic recall, and usage-based importance scoring are implemented. TTL eviction and cross-session persistence are next.

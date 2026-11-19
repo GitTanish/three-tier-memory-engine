@@ -130,4 +130,4 @@ Build the memory lifecycle one component at a time:
 
 ## Next step
 
-The working scratchpad and episodic compression are implemented. Semantic recall is next.
+The working scratchpad, episodic compression, semantic recall, and importance scoring are implemented. TTL eviction is next.

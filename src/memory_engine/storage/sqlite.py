@@ -49,7 +49,21 @@ class SqliteMemoryStore:
         self._connection.row_factory = sqlite3.Row
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        self._ensure_memory_columns()
         self._connection.commit()
+
+    def _ensure_memory_columns(self) -> None:
+        # shortcut: inline migration until a real migration runner exists;
+        # move this into a versioned migration when the next column lands.
+        columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(memories)")
+        }
+        if "access_count" not in columns:
+            self._connection.execute(
+                "ALTER TABLE memories ADD COLUMN access_count "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
 
     def close(self) -> None:
         self._connection.close()
@@ -192,12 +206,14 @@ class SqliteMemoryStore:
                     id, tier, content, summary, owner_agent_id, project_id,
                     session_id, scope, importance, confidence, status, version,
                     supersedes_id, superseded_by_id, created_at, updated_at,
-                    expires_at, last_accessed_at, tags_json, metadata_json
+                    expires_at, last_accessed_at, access_count, tags_json,
+                    metadata_json
                 ) VALUES (
                     :id, :tier, :content, :summary, :owner_agent_id, :project_id,
                     :session_id, :scope, :importance, :confidence, :status, :version,
                     :supersedes_id, :superseded_by_id, :created_at, :updated_at,
-                    :expires_at, :last_accessed_at, :tags_json, :metadata_json
+                    :expires_at, :last_accessed_at, :access_count, :tags_json,
+                    :metadata_json
                 )
                 """,
                 {
@@ -219,6 +235,7 @@ class SqliteMemoryStore:
                     "updated_at": _dt_to_text(memory.updated_at),
                     "expires_at": _dt_to_text(memory.expires_at),
                     "last_accessed_at": _dt_to_text(memory.last_accessed_at),
+                    "access_count": memory.access_count,
                     "tags_json": json.dumps(memory.tags),
                     "metadata_json": json.dumps(memory.metadata, default=str),
                 },
@@ -399,6 +416,68 @@ class SqliteMemoryStore:
             for row in rows
         ]
 
+    def record_memory_access(
+        self,
+        memory_ids: Iterable[UUID],
+        at: datetime | None = None,
+    ) -> None:
+        ids = list(memory_ids)
+        if not ids:
+            return
+        placeholders = ", ".join("?" for _ in ids)
+        with self._connection:
+            self._connection.execute(
+                f"""
+                UPDATE memories
+                SET access_count = access_count + 1,
+                    last_accessed_at = ?
+                WHERE id IN ({placeholders})
+                """,
+                [_dt_to_text(at or utc_now()), *[str(memory_id) for memory_id in ids]],
+            )
+
+    def upsert_memory_embedding(
+        self,
+        memory_id: UUID,
+        embedder_id: str,
+        vector: list[float],
+    ) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO memory_embeddings (memory_id, embedder_id, vector_json)
+                VALUES (?, ?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    embedder_id = excluded.embedder_id,
+                    vector_json = excluded.vector_json
+                """,
+                (str(memory_id), embedder_id, json.dumps(vector)),
+            )
+
+    def get_memory_embeddings(
+        self,
+        memory_ids: Iterable[UUID],
+    ) -> dict[UUID, tuple[str, list[float]]]:
+        ids = list(memory_ids)
+        if not ids:
+            return {}
+        placeholders = ", ".join("?" for _ in ids)
+        rows = self._connection.execute(
+            f"""
+            SELECT memory_id, embedder_id, vector_json
+            FROM memory_embeddings
+            WHERE memory_id IN ({placeholders})
+            """,
+            [str(memory_id) for memory_id in ids],
+        ).fetchall()
+        return {
+            UUID(row["memory_id"]): (
+                row["embedder_id"],
+                json.loads(row["vector_json"]),
+            )
+            for row in rows
+        }
+
     def upsert_working_entry(self, entry: WorkingEntry) -> WorkingEntry:
         with self._connection:
             self._connection.execute(
@@ -529,6 +608,7 @@ class SqliteMemoryStore:
                 if row["last_accessed_at"]
                 else None
             ),
+            access_count=row["access_count"],
             tags=json.loads(row["tags_json"]),
             metadata=json.loads(row["metadata_json"]),
         )

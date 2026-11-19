@@ -8,6 +8,7 @@ from memory_engine.models.memory import (
     MemoryTier,
 )
 from memory_engine.models.provenance import Provenance, ProvenanceRelation
+from memory_engine.models.query import RecallHit
 from memory_engine.models.sharing import AccessScope, ProjectMembership, ProjectRole
 from memory_engine.models.working import WorkingEntry
 
@@ -23,6 +24,7 @@ __all__ = [
     "ProjectRole",
     "Provenance",
     "ProvenanceRelation",
+    "RecallHit",
     "Session",
     "WorkingEntry",
 ]
