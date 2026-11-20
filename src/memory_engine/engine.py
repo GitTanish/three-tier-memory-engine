@@ -5,6 +5,8 @@ behind one interface. Transport and retrieval ranking are added separately.
 """
 
 from collections.abc import Iterable
+from datetime import datetime
+from typing import NamedTuple
 from uuid import UUID
 
 from memory_engine.compression import build_session_episode
@@ -29,6 +31,13 @@ from memory_engine.models.base import utc_now
 from memory_engine.retrieval import apply_token_budget, rank_memories
 from memory_engine.storage.base import MemoryStore
 from memory_engine.working import WorkingScratchpad
+
+
+class EvictionResult(NamedTuple):
+    """Counts of rows removed or expired by one sweep."""
+
+    working_entries: int
+    memories: int
 
 
 class MemoryEngine:
@@ -327,6 +336,18 @@ class MemoryEngine:
         for edge in provenance:
             self._store.add_provenance(edge)
         return stored
+
+    def evict_expired(self, *, at: datetime | None = None) -> EvictionResult:
+        """Remove expired working entries and expire outdated memories.
+
+        Working memory is deleted because it is scratch state. Episodic and
+        semantic memories are marked expired, so their history and provenance
+        remain available. Only active memories change status.
+        """
+        return EvictionResult(
+            working_entries=self.working.evict_expired(at=at),
+            memories=self._store.expire_memories(at=at),
+        )
 
     def can_read(self, agent_id: UUID, memory: MemoryRecord) -> bool:
         if memory.owner_agent_id == agent_id:

@@ -130,4 +130,4 @@ Build the memory lifecycle one component at a time:
 
 ## Next step
 
-The working scratchpad, episodic compression, semantic recall, and importance scoring are implemented. TTL eviction is next.
+The working scratchpad, episodic compression, semantic recall, importance scoring, and TTL eviction are implemented. Cross-session persistence is next.

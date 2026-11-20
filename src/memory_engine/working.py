@@ -1,6 +1,6 @@
 """Session-scoped working scratchpad."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -83,9 +83,9 @@ class WorkingScratchpad:
         self._require_session(agent_id, session_id)
         return self._store.clear_working_entries(session_id)
 
-    def evict_expired(self) -> int:
+    def evict_expired(self, *, at: datetime | None = None) -> int:
         """Remove every expired entry across all sessions."""
-        return self._store.evict_expired_working_entries()
+        return self._store.evict_expired_working_entries(at=at)
 
     def _require_session(self, agent_id: UUID, session_id: UUID) -> Session:
         agent = self._store.get_agent(agent_id)

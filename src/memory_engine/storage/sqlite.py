@@ -563,6 +563,26 @@ class SqliteMemoryStore:
             )
         return cursor.rowcount
 
+    def expire_memories(self, *, at: datetime | None = None) -> int:
+        now = _dt_to_text(at or utc_now())
+        with self._connection:
+            cursor = self._connection.execute(
+                """
+                UPDATE memories
+                SET status = ?, updated_at = ?
+                WHERE status = ?
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ?
+                """,
+                (
+                    MemoryStatus.EXPIRED.value,
+                    now,
+                    MemoryStatus.ACTIVE.value,
+                    now,
+                ),
+            )
+        return cursor.rowcount
+
     @staticmethod
     def _row_to_working_entry(row: sqlite3.Row) -> WorkingEntry:
         return WorkingEntry(

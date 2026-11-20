@@ -71,4 +71,4 @@ What should be remembered, how it should be represented, how agents share it saf
 
 ## Status
 
-Work in progress. Working memory, episodic compression, semantic recall, and usage-based importance scoring are implemented. TTL eviction and cross-session persistence are next.
+Work in progress. Working memory, episodic compression, semantic recall, importance scoring, and TTL eviction are implemented. Cross-session persistence is next.
