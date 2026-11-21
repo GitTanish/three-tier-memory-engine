@@ -162,6 +162,14 @@ class SqliteMemoryStore:
             ),
         )
 
+    def set_session_ended(self, session_id: UUID, ended_at: datetime) -> bool:
+        with self._connection:
+            cursor = self._connection.execute(
+                "UPDATE sessions SET ended_at = ? WHERE id = ?",
+                (_dt_to_text(ended_at), str(session_id)),
+            )
+        return cursor.rowcount > 0
+
     def add_membership(self, membership: ProjectMembership) -> ProjectMembership:
         with self._connection:
             self._connection.execute(

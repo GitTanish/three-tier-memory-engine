@@ -89,6 +89,39 @@ class MemoryEngine:
             Session(agent_id=agent_id, project_id=project_id, task_id=task_id)
         )
 
+    def end_session(
+        self,
+        *,
+        agent_id: UUID,
+        session_id: UUID,
+        at: datetime | None = None,
+    ) -> Session:
+        """Close a session and clear its scratch state.
+
+        Compress the session first if its working state should survive; ending
+        does not create an episode on its own. Calling this again returns the
+        already closed session unchanged.
+        """
+        self._require_agent(agent_id)
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError(f"session {session_id} not found")
+        if session.agent_id != agent_id:
+            raise AccessDeniedError("agent cannot end this session")
+        if session.ended_at is not None:
+            return session
+
+        ended_at = at or utc_now()
+        if ended_at < session.started_at:
+            raise ValueError("ended_at must not be earlier than started_at")
+
+        self.working.clear(agent_id=agent_id, session_id=session_id)
+        self._store.set_session_ended(session_id, ended_at)
+        updated = self._store.get_session(session_id)
+        if updated is None:
+            raise RuntimeError("session was not persisted")
+        return updated
+
     def store_memory(self, memory: MemoryRecord) -> MemoryRecord:
         self._require_agent(memory.owner_agent_id)
 
