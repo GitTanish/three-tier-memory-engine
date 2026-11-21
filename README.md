@@ -56,7 +56,7 @@ agent = engine.register_agent("planner")
 engine.store_memory(
     MemoryRecord(
         tier=MemoryTier.SEMANTIC,
-        content="The project uses SQLite for storage.",
+        content="The project uses SQLite as its database.",
         owner_agent_id=agent.id,
     )
 )
@@ -64,6 +64,8 @@ engine.store_memory(
 hits = engine.recall(agent_id=agent.id, query="which database?")
 print(hits[0].memory.content)
 ```
+
+The default embedder matches words, not meaning. Include likely query terms in the memory, or plug in a real `Embedder` later.
 
 ## Questions
 

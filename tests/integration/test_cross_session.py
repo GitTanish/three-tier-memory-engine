@@ -152,8 +152,18 @@ def test_knowledge_survives_session_end(engine: MemoryEngine) -> None:
         key="decision",
         value="Use PostgreSQL",
     )
-    episode = engine.compress_session(agent_id=agent.id, session_id=first.id)
-    engine.end_session(agent_id=agent.id, session_id=first.id)
+    engine.end_session(
+        agent_id=agent.id,
+        session_id=first.id,
+        compress=True,
+    )
+    episodes = engine.list_memories(
+        agent_id=agent.id,
+        project_id=project.id,
+        session_id=first.id,
+        tiers=[MemoryTier.EPISODIC],
+    )
+    episode = episodes[0]
 
     second = engine.start_session(agent_id=agent.id, project_id=project.id)
     semantic_hits = engine.recall(
@@ -171,6 +181,28 @@ def test_knowledge_survives_session_end(engine: MemoryEngine) -> None:
     assert second.id != first.id
     assert [hit.memory.id for hit in semantic_hits] == [fact.id]
     assert [hit.memory.id for hit in episodic_hits] == [episode.id]
+    assert episode.metadata["ended_at"] is not None
+    assert "Ended: open" not in episode.content
+
+
+def test_end_session_compress_skips_an_empty_session(
+    engine: MemoryEngine,
+) -> None:
+    agent, project = setup_project(engine)
+    session = engine.start_session(agent_id=agent.id, project_id=project.id)
+
+    engine.end_session(
+        agent_id=agent.id,
+        session_id=session.id,
+        compress=True,
+    )
+
+    assert engine.list_memories(
+        agent_id=agent.id,
+        project_id=project.id,
+        session_id=session.id,
+        tiers=[MemoryTier.EPISODIC],
+    ) == []
 
 
 def test_corrections_stick_across_sessions(engine: MemoryEngine) -> None:

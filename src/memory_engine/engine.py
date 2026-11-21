@@ -95,11 +95,14 @@ class MemoryEngine:
         agent_id: UUID,
         session_id: UUID,
         at: datetime | None = None,
+        compress: bool = False,
     ) -> Session:
         """Close a session and clear its scratch state.
 
-        Compress the session first if its working state should survive; ending
-        does not create an episode on its own. Calling this again returns the
+        ``compress=True`` creates the session episode after stamping the end
+        time and before clearing working state, so the episode records the
+        real end. It stays off by default because episodes are project-scoped
+        and may share private working state. Calling this again returns the
         already closed session unchanged.
         """
         self._require_agent(agent_id)
@@ -115,8 +118,10 @@ class MemoryEngine:
         if ended_at < session.started_at:
             raise ValueError("ended_at must not be earlier than started_at")
 
-        self.working.clear(agent_id=agent_id, session_id=session_id)
         self._store.set_session_ended(session_id, ended_at)
+        if compress and self._session_has_content(agent_id, session_id):
+            self.compress_session(agent_id=agent_id, session_id=session_id)
+        self.working.clear(agent_id=agent_id, session_id=session_id)
         updated = self._store.get_session(session_id)
         if updated is None:
             raise RuntimeError("session was not persisted")
@@ -405,6 +410,18 @@ class MemoryEngine:
             memory.id,
             self._embedder.id,
             self._embedder.embed(memory.content),
+        )
+
+    def _session_has_content(self, agent_id: UUID, session_id: UUID) -> bool:
+        if self._store.list_working_entries(session_id):
+            return True
+        return bool(
+            self._store.list_visible_memories(
+                agent_id=agent_id,
+                session_id=session_id,
+                tiers=[MemoryTier.EPISODIC],
+                limit=1,
+            )
         )
 
     def _require_agent(self, agent_id: UUID) -> Agent:

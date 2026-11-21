@@ -130,4 +130,4 @@ Build the memory lifecycle one component at a time:
 
 ## Next step
 
-All six V1 components are implemented: working scratchpad, episodic compression, semantic recall, importance scoring, TTL eviction, and cross-session persistence. The next step is an integration surface: a local HTTP API or MCP adapter, plus the acceptance harness from the evaluation question.
+All six V1 components are implemented: working scratchpad, episodic compression, semantic recall, importance scoring, TTL eviction, and cross-session persistence. A dogfood run across sessions and a restart passed; the main remaining quality gap is natural-language recall without a real embedder. The next step is an integration surface: a local HTTP API or MCP adapter, plus the acceptance harness from the evaluation question.
